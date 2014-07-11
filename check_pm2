@@ -1,0 +1,65 @@
+#!/usr/bin/env ruby -W0
+
+#
+# Check pm2 status node.js for Nagios
+# Author: Poy <poymode@gmail.com>
+#
+#
+# Nagions check_pm2 command
+#
+# define command {
+#   command_name check_pm2
+#   command_line $USER1$/check_pm2 --host=$HOSTADDRESS --name=translation_engine
+#
+# Nagios service example check for translation_engine
+#
+# define service{
+#  use tech-service
+#  host_name server_name
+#  service_description pm2 translation_engine
+#  check_command check_pm2
+#  }
+
+require 'json'
+require 'curb'
+require 'thor'
+
+class CLI < Thor
+  NAGIOS_OK = 0
+  NAGIOS_WARNING = 1
+  NAGIOS_CRITICAL = 2
+  NAGIOS_UNKNOWN = 3
+
+  desc "check", "Check pm2"
+  option :host, :required => true
+  option :port, :default => '9615'
+  option :name, :required => true
+
+  def check
+    name = options[:name]
+
+    http = Curl.get("#{options[:host]}:#{options[:port]}")
+
+    pm2_json = JSON.parse(http.body_str)
+    processes = pm2_json['processes'].select {|p| p['name'] == name }
+
+    processes.each do |process|
+      case process['pm2_env']['status']
+      when 'online'
+        exit NAGIOS_OK
+      when 'stopped'
+        exit NAGIOS_WARNING
+      when 'errored'
+        exit NAGIOS_CRITICAL
+      else
+        exit NAGIOS_UNKNOWN
+      end
+    end
+  end
+
+  default_task :check
+end
+
+
+CLI.start(ARGV)
+
