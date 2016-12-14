@@ -43,6 +43,11 @@ class CLI < Thor
     pm2_json = JSON.parse(http.body_str)
     processes = pm2_json['processes'].select {|p| p['name'] == name }
 
+    if processes.nil? || processes.empty?
+      puts "Unknown process"
+      exit NAGIOS_CRITICAL
+    end
+
     processes.each do |process|
       case process['pm2_env']['status']
       when 'online'
